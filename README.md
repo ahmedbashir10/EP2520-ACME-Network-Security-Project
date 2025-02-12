@@ -13,6 +13,9 @@ This project aims to design and implement a secure IT infrastructure for ACME Sc
 ## Network Topology
 The network comprises two main locations:
 
+![Network Topology](topology.drawio.png)
+
+
 ### Stockholm (Headquarters)
 - **Servers**: Web server, Access server, DNS server, Intrusion Detection System (IDS)
 - **Authentication**: Public Key Infrastructure (xPKI)
@@ -32,15 +35,6 @@ The network comprises two main locations:
 - **Secure Wireless Access**: Employees connect securely via Wi-Fi.
 - **Two-Factor Authentication (2FA)**: Additional security for accessing critical resources.
 
-## Implementation Requirements
-- **Hardware**: Switches, routers, firewalls, corporate laptops, and mobile devices.
-- **Software**: VPN software, xPKI certificate management, IDS software, Nextcloud for secure file sharing.
-- **Network Configuration**: Proper IP address management, DNS settings, and firewall rules.
-
-## Project Timeline
-- **Phase 1 (Solution Design)**: Requirement analysis and system design (Deadline: Feb 17, 2025)
-- **Phase 2 (Implementation)**: Deployment and testing of the solution (Deadline: Mar 10, 2025)
-- **Phase 3 (Presentation & Demo)**: Showcasing the implemented system (Deadline: Mar 14, 2025)
 
 ## Usage Instructions
 1. **Connect to VPN**: Employees must authenticate using their xPKI credentials.
