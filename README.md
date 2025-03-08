@@ -187,8 +187,8 @@ PersistentKeepalive = 25
 | Check WAN IP | `ip addr show wan` | Matches DuckDNS |
 | Check DuckDNS Update | `nslookup stockholmvpn.duckdns.org` | Matches WAN IP |
 | Check WireGuard Status | `wg show` | Clients connected |
-| Check Routes | `ip route show | grep 10.0.` | Shows correct subnets |
-| Check Firewall | `nft list ruleset | grep 51820` | WireGuard traffic allowed |
+| Check Routes | `ip route show` | `grep 10.0.` | Shows correct subnets |
+| Check Firewall | `nft list ruleset` | `grep 51820` | WireGuard traffic allowed |
 | View DDNS Logs | `logread -e ddns` | Shows updates and IP changes |
 
 ---
