@@ -43,19 +43,8 @@ The network comprises two main locations:
 4. **Wireless Access**: Employees must authenticate using secure credentials before connecting to Wi-Fi.
 
 -------------------------------------------------
-# ReadMe: Secure Remote Access & London-Stockholm Connection via WireGuard
 
-## Overview
-
-This document provides a **step-by-step guide** for setting up secure remote access using **WireGuard VPN** to connect Home (10.0.2.2/24) and London (10.0.1.1/24) to Stockholm (10.0.0.1/24). Additionally, it covers **firewall rules, routing configurations, dynamic DNS setup (DuckDNS), and troubleshooting**.
-
-WireGuard was chosen due to its **high-speed cryptographic implementation**, simplicity, and ease of deployment across various platforms. This VPN solution ensures encrypted and authenticated communication between network nodes while minimizing latency.
-
----
-
-## 1. System Configuration
-
-### **Network Overview**
+## **Network Overview**
 
 | **Device** | **Role** | **Interface** | **IP Address** |
 | --- | --- | --- | --- |
@@ -71,7 +60,7 @@ This guide ensures that **WAN IP updates dynamically**, **WireGuard clients alwa
 
 ---
 
-## **2. DuckDNS Setup (Dynamic WAN IP Resolution)**
+## DuckDNS Setup (Dynamic WAN IP Resolution)**
 
 To prevent manual IP changes, we configure **DuckDNS** to update Stockholm's public IP automatically.
 
@@ -111,7 +100,7 @@ Enable and restart DDNS:
 
 ---
 
-## **3. WireGuard Configuration**
+## WireGuard Configuration**
 
 ### **Stockholm (WireGuard Server)**
 
@@ -178,7 +167,7 @@ PersistentKeepalive = 25
 
 ---
 
-## **4. Verifying and Troubleshooting**
+## Verifying and Troubleshooting**
 
 ### **Check System Status**
 
@@ -193,7 +182,7 @@ PersistentKeepalive = 25
 
 ---
 
-## **5. Maintaining the Connection**
+## Maintaining the Connection**
 
 - Keep **WireGuard ON** for access to Stockholm/London.
 - If you **change networks**, restart the tunnel.
@@ -201,11 +190,158 @@ PersistentKeepalive = 25
 
 ---
 
-## **🎯 Summary**
+## FreeIPA
 
-✅ **WAN IP changes → DuckDNS updates automatically.**
-✅ **WireGuard, Firewall, and Routing always work dynamically.**
-✅ **No manual IP changes needed, ever.**
+---
 
-🔥 Your setup is now fully automated and secure! 🚀
+## FreeRadius
+
+---
+
+## Nextcloud
+
+---
+
+## Snort
+The IDS is implemented using Snort. Installation is as follows:
+
+### Installation 
+On the machine, do:
+
+```
+sudo apt update && sudo apt upgrade -y
+sudo apt-get install snort -y
+```
+
+On the router, do:
+
+```
+opkg install iptables
+opkg install iptables-mod-tee
+```
+
+### Configuration
+To mirror incoming traffic from the router, do:
+
+```
+iptables -t mangle -A PREROUTING -d 192.168.2.0/24 -j TEE --gateway 192.168.2.10
+```
+
+Note: Change IPs depending on your setup.
+
+Change your HOME\_NET to the network which is to be monitored, in this case it is 192.168.2.0/24. For EXTERNAL\_NET, the "inverse" of the HOME\_NET is set
+
+`/etc/snort/snort.conf`
+
+```
+ipvar HOME_NET 192.168.2.0/24
+```
+
+Create some simple custom rules to try potential malicious activity:
+
+`/etc/snort/rules/local.rules`
+
+```
+alert icmp $EXTERNAL_NET any -> $HOME_NET any (msg:"ICMP Ping Sucker!"; sid:1000001;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 22 (msg:"SSH Connection Attempt"; sid:1000002;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 21 (msg:"FTP login attempt"; sid:1000003;)
+```
+
+### Run Snort
+
+```
+sudo snort -c /etc/snort/snort.conf -i enp0s1 -A fast
+```
+
+This should create alerts and log them. To test, try in another terminal window
+
+```
+sudo tail -f /var/log/snort/alert
+```
+
+## Fail2Ban
+
+### Installation 
+
+```
+sudo apt update && sudo apt install fail2ban -y
+```
+
+### Configuration
+
+`/etc/fail2ban/filter.d/snort.conf`
+
+```
+[Definition]
+failregex = ^.*\s+<HOST>\s+->\s+.*$
+ignoreregex =
+```
+
+Configure the file that decides how rules and bans are applied
+
+`/etc/fail2ban/jail.local`
+
+```
+[snort]
+enabled = true
+filter = snort
+logpath = /var/log/snort/alert
+backend = auto
+maxretry = 3
+findtime = 600
+bantime = 3600
+ignoreip = 10.0.2.2 10.0.3.3 10.0.1.1
+action = iptables-ssh[name=snort, port=all, protocol=all]
+datepattern = %%m/%%d-%%H:%%M:%%S
+```
+
+Note: ignoreip describes which IPs not to block. The IPs describe the tunnels for the VPN. Make sure that logpath is where Snort saves the logs. 
+
+Add an action file that executes actions such as bans, unbans
+
+`/etc/fail2ban/action.d/iptables-ssh.conf`
+
+```
+[INCLUDES]
+before = iptables-common.conf
+
+[Definition]
+# Setup
+actionstart = /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -N f2b-snort"
+              /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -A f2b-snort -j RETURN"
+              /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -I INPUT -j f2b-snort"                         
+
+# Cleanup
+actionstop = /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -D INPUT -j f2b-snort"            
+             /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -X f2b-snort"
+
+# Check
+actioncheck = /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -n -L INPUT | grep -q 'f2b-snort'"
+
+# Ban IP
+actionban = /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -I f2b-snort 1 -s <ip> -j DROP"                       
+# Unban IP
+actionunban = /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -D f2b-snort -s <ip> -j DROP"                       
+[Init]
+banaction = /usr/bin/ssh -i /home/ritze/.ssh/id_rsa root@192.168.2.1 "iptables -w -C INPUT -j f2b-snort || iptables -w -I INPUT -j f2b->
+```
+
+Note: As the fail2ban needs access to the router, an SSH key-pair is created to perform the actions. This can be done by
+
+```
+ssh-keygen -t rsa -b 2048
+ssh-copy-id -i ~/.ssh/id_rsa.pub root@192.168.2.1
+```
+
+### Start Fail2Ban
+
+```
+sudo systemctl start fail2ban
+sudo systemctl status fail2ban
+```
+
+If correctly setup, a machine performing, for example, an ICMP request towards the router should be banned from the network. 
+
+---
+
 
